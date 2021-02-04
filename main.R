@@ -39,7 +39,7 @@ save(sim_data, file='./output/sim_data.Rdata')
 
 #Estimate effect of treatment A versus treatment B 
 #(all data is compatible with per-protocol regimes - no one is censored)
-glm(dead ~ trt_A, data=sim_data, family=binomial())$coef %>% exp
+glm(dead ~ interval + trt_A, data=sim_data, family=binomial())$coef %>% exp
 
 #Plot proportion of adherent individuals over time, stratified by treatment
 ggplot(
