@@ -113,4 +113,4 @@ bs <-
                grace_period_length = 3), cl=cl)
 stopCluster(cl)
 
-sapply(1:500, function(i){ bs[,i]$CI[length(bs[,i]$CI)] - bs[,i]$CI[length(bs[,i]$CI)-1]})
+sapply(1:500, function(i){ bs[,i]$CI[length(bs[,i]$CI)] - bs[,i]$CI[length(bs[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))
