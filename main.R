@@ -103,7 +103,7 @@ clusterEvalQ(cl, {library(tidyverse); library(data.table)})
 clusterExport(cl, c('bootstrapfnc', 'resultsfnc', 'estimate_weights', 'sim_data'))
 
 bs <- 
-  pbreplicate(1000,
+  pbreplicate(500,
     bootstrapfnc(data = sim_data %>% 
                  group_by(id) %>% 
                  mutate(lag_adherent_1 = lag(adherent,1), lag_adherent_2 = lag(adherent,2), lag_adherent_3 = lag(adherent,3)) %>%
@@ -113,4 +113,4 @@ bs <-
                grace_period_length = 3), cl=cl)
 stopCluster(cl)
 
-lapply(1:1000, function(i){ bs[,i]$CL[length(bs[,i]$CL)] - bs[,i]$CL[length(bs[,i]$CL)-1]})
+sapply(1:500, function(i){ bs[,i]$CI[length(bs[,i]$CI)] - bs[,i]$CI[length(bs[,i]$CI)-1]})

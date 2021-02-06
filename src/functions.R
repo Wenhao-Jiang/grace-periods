@@ -178,7 +178,7 @@ bootstrapfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_i
   
   return(
     resultsfnc(
-      data = data,
+      data = data_resample,
       wt_denom_formula = wt_denom_formula,
       grace_period_length = grace_period_length,
       f_int = f_int
