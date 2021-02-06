@@ -1,5 +1,8 @@
 requiredPackages = c(
   'tidyverse',
+  'ggthemes',
+  'data.table',
+  'pbapply',
   'foreach',
   'doParallel'
 )

@@ -1,6 +1,11 @@
 source('./src/dependencies.R')
 source('./src/functions.R')
 
+
+######################################################
+############## Generate simulated data  ##############
+######################################################
+
 #Set sim parameters
 params <- list(
   sample_size = 1000,
@@ -23,23 +28,23 @@ params$sample_size <- params$sample_size/num_cores
 
 cl <- makeCluster(num_cores)
 clusterEvalQ(cl, library(tidyverse))
-clusterExport(cl, c('params'),
-              envir=environment())
+clusterExport(cl, c('params'))
 
 registerDoParallel(cl)
 
 sim_data <- 
   foreach(i=1:num_cores, .combine=rbind)%dopar%{
-    create_sim_data(params) %>% group_by(id) %>% filter(dead==0 | lag(dead==0)) %>% ungroup()
+    create_sim_data(params)
   } %>% mutate(id = case_when(interval==1 ~ 1, TRUE ~ 0)) %>% mutate(id = cumsum(id))
 
 stopCluster(cl)
 
 save(sim_data, file='./output/sim_data.Rdata')
 
-#Estimate effect of treatment A versus treatment B 
-#(all data is compatible with per-protocol regimes - no one is censored)
-glm(dead ~ interval + trt_A, data=sim_data, family=binomial())$coef %>% exp
+
+######################################################
+############## View/describe adherence  ##############
+######################################################
 
 #Plot proportion of adherent individuals over time, stratified by treatment
 ggplot(
@@ -58,3 +63,54 @@ ggplot(
       as.data.frame(),
   aes(x=interval, fill=as.factor(trt_A))
 ) + geom_histogram(alpha=0.5)
+
+
+######################################################
+############# Estimate treatment effect  #############
+######################################################
+
+#Estimate effect of treatment A versus treatment B using PH model
+#(all data is compatible with per-protocol regimes - no one is censored)
+glm(dead ~ interval + trt_A, data=sim_data, family=binomial())$coef %>% exp()
+
+#Estimate effect of treatment A versus treatment B using IPW
+estimate <- 
+  resultsfnc(data = sim_data %>% 
+             group_by(id) %>% 
+             mutate(lag_adherent_1 = lag(adherent,1), lag_adherent_2 = lag(adherent,2), lag_adherent_3 = lag(adherent,3)) %>%
+             replace_na(list(lag_adherent_1 = 1, lag_adherent_2 = 1, lag_adherent_3 = 1)) %>%
+             ungroup(), 
+           wt_denom_formula = as.formula('adherent ~ lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+           grace_period_length = 3)
+
+#Plot CI curves
+ggplot(data = estimate, 
+       aes(x=interval, y=CI, linetype=as.factor(trt_A))) + geom_line(size=1.25) + 
+  xlab("Month")  + ylab("Cumulative incidence of death") + 
+  theme_tufte() + scale_x_continuous(breaks=seq(0, 120, 12)) +
+  scale_linetype_manual(values = c("solid","dashed"), 
+                        labels = c("Treatment A",
+                                   "Treatment B")) +
+  theme(legend.title=element_blank(), text=element_text(size=18),
+        axis.line.x = element_line(color="black", size = 0.5),
+        axis.line.y = element_line(color="black", size = 0.5),
+        legend.position=c(.55,.25),
+        legend.key.size = unit(2,"line")) + guides(linetype = guide_legend(override.aes = list(size=1.2)))
+
+#bootstrap
+cl <- makeCluster(num_cores)
+clusterEvalQ(cl, {library(tidyverse); library(data.table)})
+clusterExport(cl, c('bootstrapfnc', 'resultsfnc', 'estimate_weights', 'sim_data'))
+
+bs <- 
+  pbreplicate(1000,
+    bootstrapfnc(data = sim_data %>% 
+                 group_by(id) %>% 
+                 mutate(lag_adherent_1 = lag(adherent,1), lag_adherent_2 = lag(adherent,2), lag_adherent_3 = lag(adherent,3)) %>%
+                 replace_na(list(lag_adherent_1 = 1, lag_adherent_2 = 1, lag_adherent_3 = 1)) %>%
+                 ungroup(), 
+               wt_denom_formula = as.formula('adherent ~ lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+               grace_period_length = 3), cl=cl)
+stopCluster(cl)
+
+lapply(1:1000, function(i){ bs[,i]$CL[length(bs[,i]$CL)] - bs[,i]$CL[length(bs[,i]$CL)-1]})
