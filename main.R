@@ -78,8 +78,8 @@ ggplot(data = estimate_natural,
   xlab("Month")  + ylab("Cumulative incidence of death") + 
   theme_tufte() + scale_x_continuous(breaks=seq(0, 120, 12)) +
   scale_linetype_manual(values = c("solid","dashed"), 
-                        labels = c("Treatment A",
-                                   "Treatment B")) +
+                        labels = c("Medication B",
+                                   "Medication A")) +
   ylim(c(0,0.35)) +
   theme(legend.title=element_blank(), text=element_text(size=18),
         axis.line.x = element_line(color="black", size = 0.5),
@@ -125,8 +125,8 @@ ggplot(data = estimate_f_int,
   xlab("Month")  + ylab("Cumulative incidence of death") + 
   theme_tufte() + scale_x_continuous(breaks=seq(0, 120, 12)) +
   scale_linetype_manual(values = c("solid","dashed"), 
-                        labels = c("Treatment A",
-                                   "Treatment B")) +
+                        labels = c("Medication B",
+                                   "Medication A")) +
   ylim(c(0,0.35)) +
   theme(legend.title=element_blank(), text=element_text(size=18),
         axis.line.x = element_line(color="black", size = 0.5),
