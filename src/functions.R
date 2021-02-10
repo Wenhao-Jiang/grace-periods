@@ -95,7 +95,9 @@ create_sim_data <- function(params) {
     
     sim_data <- sim_data %>% 
       group_by(id, temp) %>%
-      mutate(num_intervals_nonadherent = row_number()*(1-adherent)) %>% 
+      mutate(num_intervals_nonadherent = row_number()*(1-adherent)) %>%
+      group_by(id) %>%
+      mutate(num_intervals_nonadherent = lag(num_intervals_nonadherent,1,default=0)) %>% 
       ungroup() %>% 
       select(-temp)
     
@@ -106,13 +108,14 @@ create_sim_data <- function(params) {
 }
 
 
-resultsfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL){
+resultsfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL, f_cond_int = NULL){
   
   data_wts <- data %>% mutate(Wt = estimate_weights(
     data = data, 
     wt_denom_formula = wt_denom_formula, 
     grace_period_length = grace_period_length,
-    f_int = f_int
+    f_int = f_int,
+    f_cond_int = f_cond_int
   ))
   
   estimate <- data_wts %>% 
@@ -125,7 +128,7 @@ resultsfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_int
 }
 
 
-estimate_weights <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL){
+estimate_weights <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL, f_cond_int = NULL){
   
   data$prob_adherence <- 
     predict(glm(formula = wt_denom_formula, 
@@ -133,11 +136,11 @@ estimate_weights <- function(data, wt_denom_formula, grace_period_length = NULL,
                 family = binomial()), 
             newdata = data, type="response")
   
-  if (is.null(f_int)) {
+  if (is.null(f_int) & is.null(f_cond_int)) {
     
     data_with_weights <- data %>%
       group_by(id) %>% 
-      mutate(denom_wt = case_when(lag(num_intervals_nonadherent, 1) == grace_period_length ~ 1/prob_adherence,
+      mutate(denom_wt = case_when(lag(num_intervals_nonadherent, 1) == grace_period_length ~ prob_adherence,
                                   TRUE ~ 1),
              num_wt = case_when(lag(num_intervals_nonadherent, 1) == grace_period_length & adherent == 0 ~ 0,
                                 TRUE ~ 1),
@@ -147,28 +150,39 @@ estimate_weights <- function(data, wt_denom_formula, grace_period_length = NULL,
     
   } else {
     
-    f_int_cond_adh <- f_int / head(c(1, 1-cumsum(f_int)), -1)
-    
-    f_int_cond_nonadh <- 1 - f_int_cond_adh
+    if (is.null(f_cond_int)) {
+      
+      f_int_cond_adh <- f_int / head(c(1, 1-cumsum(f_int)), -1)
+      
+      f_int_cond_nonadh <- 1 - f_int_cond_adh
+      
+    } else {
+      
+      f_int_cond_adh <- f_cond_int
+      
+      f_int_cond_nonadh <- 1-f_int_cond_adh
+      
+    }
     
     data_with_weights <- data %>%
       group_by(id) %>% 
-      mutate(denom_wt = 1/prob_adherence,
+      mutate(denom_wt = case_when(adherent == 1 ~ prob_adherence,
+                                  adherent == 0 ~ 1-prob_adherence),
              num_wt = case_when(adherent == 1 ~ f_int_cond_adh[num_intervals_nonadherent+1],
-                                adherent == 0 ~ f_int_cond_adh[num_intervals_nonadherent+1]),
+                                adherent == 0 ~ f_int_cond_nonadh[num_intervals_nonadherent+1]),
              Wt = num_wt/denom_wt) %>%
       mutate(Wt_cumprod = cumprod(Wt)) %>%
       ungroup()
     
   }
   
-  #print(data_with_weights$Wt_cumprod %>% quantile(seq(0,1,0.1)))
+  print(data_with_weights$Wt_cumprod %>% quantile(seq(0,1,0.1)))
   
   return(data_with_weights$Wt_cumprod)
 }
 
 
-bootstrapfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL){
+bootstrapfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_int = NULL, f_cond_int = NULL){
   
   IDs <- sample(unique(data$id), length(unique(data$id)), replace = TRUE)
   datatemp <- as.data.table(data)
@@ -181,7 +195,8 @@ bootstrapfnc <- function(data, wt_denom_formula, grace_period_length = NULL, f_i
       data = data_resample,
       wt_denom_formula = wt_denom_formula,
       grace_period_length = grace_period_length,
-      f_int = f_int
+      f_int = f_int,
+      f_cond_int = f_cond_int
     )
   )
 }

@@ -8,8 +8,8 @@ source('./src/functions.R')
 
 #Set sim parameters
 params <- list(
-  sample_size = 1000,
-  num_intervals = 120,
+  sample_size = 100000,
+  num_intervals = 60,
   p_Y = 0.01,
   p_AY = 0.005,
   p_BY = 0.005,
@@ -52,18 +52,6 @@ ggplot(
   aes(y=adherence, x=interval, col=as.factor(trt_A))
   ) + geom_point()
 
-#histogram of non-adherence over time, stratified by treatment
-ggplot(
-  data = 
-    sim_data %>% 
-      group_by(id) %>% 
-      filter(adherent == 0 & (lag(adherent,1) == 1 | lag(adherent,2) == 1 | lag(adherent, 3) == 1)) %>% 
-      ungroup() %>%
-      select(c(interval, trt_A)) %>%
-      as.data.frame(),
-  aes(x=interval, fill=as.factor(trt_A))
-) + geom_histogram(alpha=0.5)
-
 
 ######################################################
 ############# Estimate treatment effect  #############
@@ -73,44 +61,95 @@ ggplot(
 #(all data is compatible with per-protocol regimes - no one is censored)
 glm(dead ~ interval + trt_A, data=sim_data, family=binomial())$coef %>% exp()
 
-#Estimate effect of treatment A versus treatment B using IPW
-estimate <- 
+#Estimate effect of treatment A versus treatment B using IPW for the natural regime
+estimate_natural <- 
   resultsfnc(data = sim_data %>% 
-             group_by(id) %>% 
-             mutate(lag_adherent_1 = lag(adherent,1), lag_adherent_2 = lag(adherent,2), lag_adherent_3 = lag(adherent,3)) %>%
-             replace_na(list(lag_adherent_1 = 1, lag_adherent_2 = 1, lag_adherent_3 = 1)) %>%
-             ungroup(), 
-           wt_denom_formula = as.formula('adherent ~ lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+               group_by(id) %>% 
+               mutate(lag_adherent_1 = lag(adherent,1,default=1), 
+                      lag_adherent_2 = lag(adherent,2,default=1), 
+                      lag_adherent_3 = lag(adherent,3,default=1)) %>%
+               ungroup(), 
+           wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
            grace_period_length = 3)
 
 #Plot CI curves
-ggplot(data = estimate, 
+ggplot(data = estimate_natural, 
        aes(x=interval, y=CI, linetype=as.factor(trt_A))) + geom_line(size=1.25) + 
   xlab("Month")  + ylab("Cumulative incidence of death") + 
   theme_tufte() + scale_x_continuous(breaks=seq(0, 120, 12)) +
   scale_linetype_manual(values = c("solid","dashed"), 
                         labels = c("Treatment A",
                                    "Treatment B")) +
+  ylim(c(0,0.35)) +
   theme(legend.title=element_blank(), text=element_text(size=18),
         axis.line.x = element_line(color="black", size = 0.5),
         axis.line.y = element_line(color="black", size = 0.5),
         legend.position=c(.55,.25),
         legend.key.size = unit(2,"line")) + guides(linetype = guide_legend(override.aes = list(size=1.2)))
 
-#bootstrap
+#bootstrap for the natural regime
 cl <- makeCluster(num_cores)
 clusterEvalQ(cl, {library(tidyverse); library(data.table)})
 clusterExport(cl, c('bootstrapfnc', 'resultsfnc', 'estimate_weights', 'sim_data'))
 
-bs <- 
+bs_natural <- 
   pbreplicate(500,
     bootstrapfnc(data = sim_data %>% 
                  group_by(id) %>% 
-                 mutate(lag_adherent_1 = lag(adherent,1), lag_adherent_2 = lag(adherent,2), lag_adherent_3 = lag(adherent,3)) %>%
-                 replace_na(list(lag_adherent_1 = 1, lag_adherent_2 = 1, lag_adherent_3 = 1)) %>%
+                 mutate(lag_adherent_1 = lag(adherent,1,default=1), 
+                        lag_adherent_2 = lag(adherent,2,default=1), 
+                        lag_adherent_3 = lag(adherent,3,default=1)) %>%
                  ungroup(), 
-               wt_denom_formula = as.formula('adherent ~ lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+               wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
                grace_period_length = 3), cl=cl)
 stopCluster(cl)
 
-sapply(1:500, function(i){ bs[,i]$CI[length(bs[,i]$CI)] - bs[,i]$CI[length(bs[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))
+sapply(1:500, function(i){ bs_natural[,i]$CI[length(bs_natural[,i]$CI)] - 
+    bs_natural[,i]$CI[length(bs_natural[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))
+
+
+#Estimate effect of treatment A versus treatment B using IPW for a particular intervention distribution
+estimate_f_int <- 
+  resultsfnc(data = sim_data %>% 
+               group_by(id) %>% 
+               mutate(lag_adherent_1 = lag(adherent,1,default=1), 
+                      lag_adherent_2 = lag(adherent,2,default=1), 
+                      lag_adherent_3 = lag(adherent,3,default=1)) %>%
+               ungroup(), 
+             wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+             f_cond_int = c(0.9,0.9,0.9,1))
+
+#Plot CI curves
+ggplot(data = estimate_f_int, 
+       aes(x=interval, y=CI, linetype=as.factor(trt_A))) + geom_line(size=1.25) + 
+  xlab("Month")  + ylab("Cumulative incidence of death") + 
+  theme_tufte() + scale_x_continuous(breaks=seq(0, 120, 12)) +
+  scale_linetype_manual(values = c("solid","dashed"), 
+                        labels = c("Treatment A",
+                                   "Treatment B")) +
+  ylim(c(0,0.35)) +
+  theme(legend.title=element_blank(), text=element_text(size=18),
+        axis.line.x = element_line(color="black", size = 0.5),
+        axis.line.y = element_line(color="black", size = 0.5),
+        legend.position=c(.55,.25),
+        legend.key.size = unit(2,"line")) + guides(linetype = guide_legend(override.aes = list(size=1.2)))
+
+#bootstrap for an f_int
+cl <- makeCluster(num_cores)
+clusterEvalQ(cl, {library(tidyverse); library(data.table)})
+clusterExport(cl, c('bootstrapfnc', 'resultsfnc', 'estimate_weights', 'sim_data'))
+
+bs_f_int <- 
+  pbreplicate(500,
+              bootstrapfnc(data = sim_data %>% 
+                             group_by(id) %>% 
+                             mutate(lag_adherent_1 = lag(adherent,1,default=1), 
+                                    lag_adherent_2 = lag(adherent,2,default=1), 
+                                    lag_adherent_3 = lag(adherent,3,default=1)) %>%
+                             ungroup(), 
+                           wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
+                           f_cond_int = c(0.80,0.95,0.975,1)), cl=cl)
+stopCluster(cl)
+
+sapply(1:500, function(i){ bs_f_int[,i]$CI[length(bs_f_int[,i]$CI)] - 
+    bs_f_int[,i]$CI[length(bs_f_int[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))
