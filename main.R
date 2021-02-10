@@ -10,7 +10,7 @@ source('./src/functions.R')
 params <- list(
   sample_size = 100000,
   num_intervals = 60,
-  p_Y = 0.01,
+  p_Y = 0.02,
   p_AY = 0.005,
   p_BY = 0.005,
   p_nonadherence_A = 0.1,
@@ -80,7 +80,7 @@ ggplot(data = estimate_natural,
   scale_linetype_manual(values = c("solid","dashed"), 
                         labels = c("Medication B",
                                    "Medication A")) +
-  ylim(c(0,0.35)) +
+  ylim(c(0,0.4)) +
   theme(legend.title=element_blank(), text=element_text(size=18),
         axis.line.x = element_line(color="black", size = 0.5),
         axis.line.y = element_line(color="black", size = 0.5),
@@ -103,6 +103,7 @@ bs_natural <-
                wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
                grace_period_length = 3), cl=cl)
 stopCluster(cl)
+save(bs_natural, file='./output/bs_natural.Rdata')
 
 sapply(1:500, function(i){ bs_natural[,i]$CI[length(bs_natural[,i]$CI)] - 
     bs_natural[,i]$CI[length(bs_natural[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))
@@ -117,7 +118,7 @@ estimate_f_int <-
                       lag_adherent_3 = lag(adherent,3,default=1)) %>%
                ungroup(), 
              wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
-             f_cond_int = c(0.9,0.9,0.9,1))
+             f_cond_int = c(0.8,0.8,0.8,1))
 
 #Plot CI curves
 ggplot(data = estimate_f_int, 
@@ -127,7 +128,7 @@ ggplot(data = estimate_f_int,
   scale_linetype_manual(values = c("solid","dashed"), 
                         labels = c("Medication B",
                                    "Medication A")) +
-  ylim(c(0,0.35)) +
+  ylim(c(0,0.4)) +
   theme(legend.title=element_blank(), text=element_text(size=18),
         axis.line.x = element_line(color="black", size = 0.5),
         axis.line.y = element_line(color="black", size = 0.5),
@@ -148,8 +149,9 @@ bs_f_int <-
                                     lag_adherent_3 = lag(adherent,3,default=1)) %>%
                              ungroup(), 
                            wt_denom_formula = as.formula('adherent ~ interval*lag_adherent_1*lag_adherent_2*lag_adherent_3*trt_A'),
-                           f_cond_int = c(0.80,0.95,0.975,1)), cl=cl)
+                           f_cond_int = c(0.9,0.9,0.9,1)), cl=cl)
 stopCluster(cl)
+save(bs_f_int, file='./output/bs_f_int.Rdata')
 
 sapply(1:500, function(i){ bs_f_int[,i]$CI[length(bs_f_int[,i]$CI)] - 
     bs_f_int[,i]$CI[length(bs_f_int[,i]$CI)-1]}) %>% quantile(c(0.025,0.975))

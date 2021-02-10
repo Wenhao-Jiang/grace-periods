@@ -4,7 +4,8 @@ requiredPackages = c(
   'data.table',
   'pbapply',
   'foreach',
-  'doParallel'
+  'doParallel',
+  'ggpubr'
 )
 for (p in requiredPackages) {
   if (!require(p, character.only = TRUE))
