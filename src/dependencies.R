@@ -1,11 +1,23 @@
 requiredPackages = c(
   'tidyverse',
-  'ggthemes',
   'data.table',
+  'haven',
+  'splines',
+  'fastDummies',
+  'gdata',
+  'ranger',
+  'caret',
+  'ipred',
+  'caret',
+  'gbm',
   'pbapply',
-  'foreach',
-  'doParallel',
-  'ggpubr'
+  'glmnet',
+  'wavethresh',
+  'wavelets',
+  'parallel',
+  'SMUT',
+  'fda',
+  'nlshrink'
 )
 for (p in requiredPackages) {
   if (!require(p, character.only = TRUE))
