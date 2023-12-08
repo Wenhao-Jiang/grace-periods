@@ -1,4 +1,4 @@
-# Grace periods in comparative effectiveness studies of medications
+# Grace periods in comparative effectiveness studies of sustained treatments
 
 # Introduction
 Here we provide the code to reproduce the analysis described in: 
