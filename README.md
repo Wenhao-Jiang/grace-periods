@@ -1,7 +1,7 @@
 # Grace periods in comparative effectiveness studies of sustained treatments
 
 # Introduction
-Here we provide the code to reproduce the analysis described in: 
+Here we provide the code to reproduce the analysis described in: Wanis KN, Sarvet AL, Wen L, Block JP, Rifas-Shiman SL, Robins JM, Young JG. Grace periods in comparative effectiveness studies of sustained treatments. Journal of the Royal Statistical Society Series A: Statistics in Society. https://doi.org/10.1093/jrsssa/qnae002.
 
 # Organization
 - `main_sim.R` — R file which creates a simulated dataset and then applies an inverse probability weighted estimator to compute risk under natural and stochastic grace period treatment strategies.
